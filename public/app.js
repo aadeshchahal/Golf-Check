@@ -109,11 +109,11 @@ $("form").addEventListener("submit", (e) => {
       for (const t of allTeeTimes) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${fmtTime(t.localTime)}</td>
-          <td>${t.course}</td>
-          <td>${t.holes}</td>
-          <td><span class="pill">${t.playersAvailable}</span></td>
-          <td>${fmtPrice(t)}</td>
+          <td data-label="Time">${fmtTime(t.localTime)}</td>
+          <td data-label="Course">${t.course}</td>
+          <td data-label="Holes">${t.holes}</td>
+          <td data-label="Open spots"><span class="pill">${t.playersAvailable}</span></td>
+          <td data-label="Price">${fmtPrice(t)}</td>
           <td><a class="book" href="${t.bookingUrl}" target="_blank" rel="noopener">Book ↗</a></td>`;
         tbody.appendChild(tr);
       }

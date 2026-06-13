@@ -62,6 +62,35 @@
       .err { color: #e03131; }
       .muted { color: #888; }
       details { margin-top: 1rem; font-size: 0.85rem; }
+
+      @media (max-width: 600px) {
+        body { padding: 1rem; }
+        form { grid-template-columns: 1fr; }
+        table, thead, tbody, th, td, tr { display: block; }
+        thead tr { display: none; }
+        tr { 
+          margin-bottom: 1rem; 
+          border: 1px solid rgba(127,127,127,0.2); 
+          border-radius: 8px; 
+          padding: 0.5rem; 
+        }
+        td { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          padding: 0.4rem 0; 
+          border-bottom: 1px dashed rgba(127,127,127,0.1); 
+        }
+        td:last-child { border-bottom: none; justify-content: center; margin-top: 0.5rem; }
+        td:last-child .book { display: block; width: 100%; text-align: center; background: rgba(47,158,68,0.1); padding: 0.5rem; border-radius: 6px; }
+        td::before { 
+          content: attr(data-label); 
+          font-weight: 600; 
+          font-size: 0.75rem; 
+          text-transform: uppercase; 
+          color: #888; 
+        }
+      }
     </style>
   </head>
   <body>
