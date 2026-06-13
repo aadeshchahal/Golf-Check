@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "discover": "tsx scripts/discover-ids.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

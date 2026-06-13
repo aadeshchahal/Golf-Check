@@ -1,7 +1,8 @@
 // Core domain types for the tee-time aggregator.
 
-/** Which booking backend a course runs on. */
-export type Backend = "chronogolf" | "perfectmind";
+/** Which booking backend a course runs on. Each Edmonton-area course migrated
+ *  to a different system; see src/courses.ts for the mapping. */
+export type Backend = "foreup" | "teeon" | "perfectmind";
 
 /** Number of holes a golfer wants to play. */
 export type Holes = 9 | 18;
@@ -52,12 +53,17 @@ export interface CourseResult {
   error?: string;
 }
 
-/** Every backend adapter implements this. `fetchAvailability` returns ALL tee
+/** Every backend adapter implements this. `fetchAvailability` returns the tee
  *  times for the given date + hole count for one course; filtering by time
- *  window and party size happens later in aggregation. */
+ *  window happens later in aggregation.
+ *
+ *  `players` is passed through because some backends (Tee-On) filter the tee
+ *  sheet by party size upstream rather than reporting a per-slot open-spot
+ *  count. Backends that DO report open spots (ForeUp, PerfectMind) query their
+ *  full sheet and set `playersAvailable` accurately; the aggregator still
+ *  filters by party size defensively. */
 export interface CourseAdapter {
-  /** Fetch raw availability for one course on one date for a hole count. */
-  fetchAvailability(course: Course, date: string, holes: Holes): Promise<TeeTime[]>;
+  fetchAvailability(course: Course, date: string, holes: Holes, players: number): Promise<TeeTime[]>;
 }
 
 /** Registry entry describing one bookable course. */
@@ -71,31 +77,40 @@ export interface Course {
   timezone: string;
   /** Whether the course is queried by the aggregator. */
   enabled: boolean;
-  /** Backend-specific configuration (ids, slugs, guids). */
-  chronogolf?: ChronogolfConfig;
+  /** Backend-specific configuration (ids, codes, guids). */
+  foreup?: ForeUpConfig;
+  teeon?: TeeOnConfig;
   perfectmind?: PerfectMindConfig;
 }
 
-export interface ChronogolfConfig {
-  /** Public widget host, e.g. "www.chronogolf.com" or "www.chronogolf.ca". */
-  host: string;
-  /** Human-readable slug for building booking links. */
-  slug: string;
-  /** Numeric club id (from discovery). */
-  clubId: number;
-  /** Numeric course id per hole count. A club may expose separate course ids
-   *  for its 9- vs 18-hole layouts (and multiple nines). Map each requested
-   *  hole count to the course id(s) that should be queried. */
-  courseIdsByHoles: Record<Holes, number[]>;
-  /** Affiliation/rate type ids identifying the public rate (from discovery). */
-  affiliationTypeIds: number[];
+/** ForeUp Software (foreupsoftware.com) — Eagle Rock. Public JSON booking API. */
+export interface ForeUpConfig {
+  /** Numeric course id in the booking URL, e.g. 18992. */
+  courseId: number;
+  /** Public booking class (rate group) id, e.g. 384. */
+  bookingClass: number;
+  /** Tee sheet / schedule id, e.g. 916. */
+  scheduleId: number;
 }
 
+/** Tee-On Golf Systems (tee-on.com) — Mill Woods, Coloniale. Server-rendered
+ *  tee sheet driven through a real browser; results filtered by party size. */
+export interface TeeOnConfig {
+  /** 4-letter course code, e.g. "MILL" / "COGO". */
+  courseCode: string;
+  /** Numeric course group id shared by a Tee-On operator, e.g. 10342. */
+  courseGroupId: number;
+}
+
+/** PerfectMind / Xplor "MoveLearnPlay" — City of Edmonton (Victoria, Riverside).
+ *  Booking sits behind a virtual-queue and is driven through a real browser. */
 export interface PerfectMindConfig {
   /** Host, e.g. "movelearnplay.edmonton.ca". */
   host: string;
   /** Path prefix, e.g. "/COE/public". */
   basePath: string;
-  /** Course GUID used in the public golf course URL. */
+  /** Golf category GUID used to enter the booking queue. */
+  categoryGuid: string;
+  /** Course GUID used in the public golf course URL + search form. */
   guid: string;
 }

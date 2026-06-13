@@ -1,75 +1,54 @@
 import type { Course } from "./types.js";
 
-// The six Edmonton-area courses for the POC.
+// The Edmonton-area courses for the POC.
 //
-// Two pieces of config must be captured once with `npm run discover` on a
-// machine with normal internet access (Chronogolf + MoveLearnPlay block
-// automated/datacenter traffic, so this cannot run from a CI/cloud sandbox):
+// IMPORTANT: despite their stale Chronogolf marketplace listings, these courses
+// each book through a *different* live system (verified 2026-06 against each
+// course's own "Book Now" link). The ids/codes/guids below were captured from
+// those live booking flows:
 //
-//   Chronogolf  -> clubId, courseIdsByHoles, affiliationTypeIds
-//   PerfectMind -> the availability XHR shape (GUIDs below are already known)
+//   ForeUp (JSON API)      -> Eagle Rock
+//   Tee-On (browser/HTML)  -> Mill Woods, Coloniale
+//   PerfectMind (browser)  -> Victoria, Riverside  (City of Edmonton)
 //
-// Fields left as 0 / [] are placeholders. Until they are filled the course
-// will surface a clear "needs discovery" error in the UI rather than fail
-// silently. Run discovery, paste the values here, restart the server.
+// Country Side (Sherwood Park) is intentionally omitted: it runs on Club
+// Prophet Systems (countrysideab.cps.golf), whose availability API sits behind
+// a Cloudflare bot challenge that blocks automated/headless access. Revisit if
+// a reliable, polite path is found.
 
 export const COURSES: Course[] = [
   {
-    id: "millwoods",
-    name: "Mill Woods",
-    backend: "chronogolf",
-    timezone: "America/Edmonton",
-    enabled: true,
-    chronogolf: {
-      host: "www.chronogolf.com",
-      slug: "mill-woods-golf-club",
-      clubId: 0, // TODO discovery
-      courseIdsByHoles: { 9: [], 18: [] }, // TODO discovery
-      affiliationTypeIds: [], // TODO discovery
-    },
-  },
-  {
     id: "eaglerock",
     name: "Eagle Rock",
-    backend: "chronogolf",
+    backend: "foreup",
     timezone: "America/Edmonton",
     enabled: true,
-    chronogolf: {
-      host: "www.chronogolf.com",
-      slug: "eagle-rock-golf-course",
-      clubId: 0, // TODO discovery
-      courseIdsByHoles: { 9: [], 18: [] }, // TODO discovery
-      affiliationTypeIds: [], // TODO discovery
+    foreup: {
+      courseId: 18992,
+      bookingClass: 384, // Public
+      scheduleId: 916,
     },
   },
   {
-    id: "countryside",
-    name: "Country Side (Sherwood Park)",
-    backend: "chronogolf",
+    id: "millwoods",
+    name: "Mill Woods",
+    backend: "teeon",
     timezone: "America/Edmonton",
     enabled: true,
-    chronogolf: {
-      host: "www.chronogolf.ca",
-      slug: "country-side-golf-club",
-      clubId: 0, // TODO discovery
-      // 27+ holes: expect several course ids; group them by the hole count a
-      // golfer would book. Discovery will list every course id under the club.
-      courseIdsByHoles: { 9: [], 18: [] }, // TODO discovery
-      affiliationTypeIds: [], // TODO discovery
+    teeon: {
+      courseCode: "MILL",
+      courseGroupId: 10342,
     },
   },
   {
     id: "coloniale",
     name: "Coloniale (Beaumont)",
-    backend: "chronogolf",
+    backend: "teeon",
     timezone: "America/Edmonton",
     enabled: true,
-    chronogolf: {
-      host: "www.chronogolf.ca",
-      slug: "coloniale-golf-country-club",
-      clubId: 0, // TODO discovery
-      courseIdsByHoles: { 9: [], 18: [] }, // TODO discovery
-      affiliationTypeIds: [], // TODO discovery
+    teeon: {
+      courseCode: "COGO",
+      courseGroupId: 10342,
     },
   },
   {
@@ -81,7 +60,8 @@ export const COURSES: Course[] = [
     perfectmind: {
       host: "movelearnplay.edmonton.ca",
       basePath: "/COE/public",
-      guid: "2b613d0a-e225-4588-9d24-a741b0118433", // known
+      categoryGuid: "2b251ce6-ea3d-45a1-9586-53d4054db7f2",
+      guid: "2b613d0a-e225-4588-9d24-a741b0118433",
     },
   },
   {
@@ -93,7 +73,8 @@ export const COURSES: Course[] = [
     perfectmind: {
       host: "movelearnplay.edmonton.ca",
       basePath: "/COE/public",
-      guid: "303ad9dc-752c-4ce7-9029-f9b0be4ae9c0", // known
+      categoryGuid: "2b251ce6-ea3d-45a1-9586-53d4054db7f2",
+      guid: "303ad9dc-752c-4ce7-9029-f9b0be4ae9c0",
     },
   },
 ];

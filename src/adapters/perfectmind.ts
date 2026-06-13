@@ -1,138 +1,141 @@
 import type { Course, CourseAdapter, Holes, TeeTime } from "../types.js";
-import { pad, toIso } from "../time.js";
+import { pad, toIso, zoneOffset } from "../time.js";
+import { withContext } from "../browser.js";
 
-// Adapter for PerfectMind / Xplor "MoveLearnPlay" (City of Edmonton:
-// Victoria, Riverside).
+// Adapter for PerfectMind / Xplor "MoveLearnPlay" (City of Edmonton: Victoria,
+// Riverside).
 //
-// PerfectMind has no documented public JSON API and blocks plain/datacenter
-// HTTP requests, so this adapter drives a real headless browser (Playwright).
-// It loads the public golf course page for the requested date and captures the
-// availability XHR the page fires, then maps it to normalized TeeTimes.
+// Booking sits behind a virtual-queue, so this drives a real browser:
 //
-// The exact XHR URL + JSON shape is confirmed by `npm run discover`. The
-// capture heuristic and mapping below are intentionally generic; once you have
-// the discovery output, tighten `looksLikeAvailability` and `mapSlot` to the
-// real fields. Mapping is marked NEEDS-VERIFICATION until you've run discovery
-// on a machine with internet access.
+//   golf/sendtoqueue?categoryGUID=…&golfCourse=<GUID>
+//     -> /queue/wait  (polls /queue/MyPosition until released, ~seconds off-peak)
+//     -> /golf/teetimesearch   (sets the session + antiforgery token)
+//
+// From the search page we POST the search directly (cleaner than driving the
+// calendar widget):
+//
+//   POST /COE/public/golf/TeeTimeSearch
+//     __RequestVerificationToken, selectedGolfCourse=<GUID>,
+//     SearchDate=<localMidnightUTC>, Time=, NumberOfHoles=9|18, NumberOfPlayers=1
+//
+// The response is HTML with one button per slot:
+//   <button data-time="7:24 AM" data-spaces="4" data-holegroup="Front 9">…
+// PerfectMind doesn't surface a price here, so price is null (the City's green
+// fees are fixed and shown on the booking page).
 
-// Lazy singleton browser so we don't relaunch chromium on every request.
-let browserPromise: Promise<import("playwright").Browser> | null = null;
-async function getBrowser() {
-  if (!browserPromise) {
-    const { chromium } = await import("playwright");
-    browserPromise = chromium.launch({ headless: true });
-  }
-  return browserPromise;
-}
-
-export async function closeBrowser(): Promise<void> {
-  if (browserPromise) {
-    const b = await browserPromise;
-    await b.close();
-    browserPromise = null;
-  }
-}
-
-function courseUrl(course: Course, date: string): string {
-  const cfg = course.perfectmind!;
-  return `https://${cfg.host}${cfg.basePath}/golf/course/${cfg.guid}?date=${date}`;
-}
-
-function looksLikeAvailability(url: string): boolean {
-  return /calendar|teetime|tee-time|availability|booking|slots|schedule/i.test(url);
-}
-
-// NEEDS-VERIFICATION: adjust field names to the real PerfectMind payload.
 interface RawSlot {
-  time?: string;
-  startTime?: string;
-  start?: string;
-  spots?: number;
-  available?: number;
-  capacity?: number;
-  price?: number;
-  fee?: number;
-  holes?: number;
-  nbHoles?: number;
+  time: string | null; // "7:24 AM"
+  spaces: string | null; // "4"
 }
 
-function extractTime(s: RawSlot): string | null {
-  const raw = s.time ?? s.startTime ?? s.start;
-  if (!raw) return null;
-  // Accept "HH:mm", "HH:mm:ss", or an ISO timestamp.
-  const hm = /(\d{1,2}):(\d{2})/.exec(raw);
-  return hm ? `${hm[1]}:${hm[2]}` : null;
+function queueUrl(course: Course): string {
+  const cfg = course.perfectmind!;
+  return `https://${cfg.host}${cfg.basePath}/golf/sendtoqueue?categoryGUID=${cfg.categoryGuid}&golfCourse=${cfg.guid}`;
 }
 
-function extractSpots(s: RawSlot): number {
-  const v = s.spots ?? s.available ?? s.capacity ?? 0;
-  return Math.max(0, Math.min(4, Number(v) || 0));
+function courseUrl(course: Course): string {
+  const cfg = course.perfectmind!;
+  return `https://${cfg.host}${cfg.basePath}/golf/course/${cfg.guid}`;
+}
+
+/** PerfectMind's SearchDate is local midnight expressed in UTC, e.g. summer
+ *  (MDT, -06:00) -> "2026-06-20T06:00:00.000Z". */
+function searchDate(date: string, timeZone: string): string {
+  const offset = zoneOffset(date, timeZone); // "-06:00" / "-07:00"
+  const hh = offset.slice(1, 3); // "06" / "07"
+  return `${date}T${hh}:00:00.000Z`;
+}
+
+/** "7:24 AM" -> "07:24". */
+function to24h(s: string): string | null {
+  const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(s);
+  if (!m) return null;
+  let h = Number(m[1]) % 12;
+  if (/PM/i.test(m[3])) h += 12;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
 }
 
 export const perfectMindAdapter: CourseAdapter = {
   async fetchAvailability(course: Course, date: string, holes: Holes): Promise<TeeTime[]> {
-    if (!course.perfectmind) throw new Error(`${course.id}: missing perfectmind config`);
+    const cfg = course.perfectmind;
+    if (!cfg) throw new Error(`${course.id}: missing perfectmind config`);
 
-    const browser = await getBrowser();
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      locale: "en-CA",
-    });
-    const page = await context.newPage();
+    return withContext(async (ctx) => {
+      const page = await ctx.newPage();
+      await page.goto(queueUrl(course), { waitUntil: "domcontentloaded", timeout: 60_000 });
 
-    const captured: RawSlot[] = [];
-    page.on("response", async (res) => {
-      try {
-        if (!looksLikeAvailability(res.url())) return;
-        const ct = res.headers()["content-type"] ?? "";
-        if (!ct.includes("json")) return;
-        const body = await res.json();
-        const arr = Array.isArray(body) ? body : (body?.results ?? body?.data ?? body?.items);
-        if (Array.isArray(arr)) captured.push(...(arr as RawSlot[]));
-      } catch {
-        /* ignore non-JSON / parse errors */
+      // Wait out the virtual queue (it redirects to the search page when ready).
+      let released = false;
+      for (let i = 0; i < 25; i++) {
+        if (/teetimesearch/i.test(page.url())) { released = true; break; }
+        await page.waitForTimeout(2000);
       }
-    });
-
-    try {
-      await page.goto(courseUrl(course, date), { waitUntil: "networkidle", timeout: 30_000 });
-      // Give late XHRs a moment to land.
+      if (!released && !/teetimesearch/i.test(page.url())) {
+        throw new Error(`${course.id}: still queued after 50s (peak load) — try again`);
+      }
       await page.waitForTimeout(1500);
-    } finally {
-      await context.close();
-    }
 
-    if (captured.length === 0) {
-      throw new Error(
-        `${course.id}: no availability data captured — run \`npm run discover\` to confirm the MoveLearnPlay XHR shape, then update mapSlot in perfectmind.ts`,
+      const token = String(
+        await page.evaluate(
+          `(document.querySelector('input[name="__RequestVerificationToken"]') || {}).value || ''`,
+        ),
       );
-    }
+      if (!token) throw new Error(`${course.id}: no antiforgery token on search page`);
 
-    const out: TeeTime[] = [];
-    for (const slot of captured) {
-      const t = extractTime(slot);
-      if (!t) continue;
-      const spots = extractSpots(slot);
-      if (spots <= 0) continue;
-      // PerfectMind may not split 9/18 the same way; if the payload carries a
-      // hole count, respect it, otherwise assume the page's selected holes.
-      const slotHoles = (slot.holes ?? slot.nbHoles) as Holes | undefined;
-      if (slotHoles && slotHoles !== holes) continue;
-      const localTime = pad(t);
-      out.push({
-        course: course.name,
-        courseId: course.id,
-        startTime: toIso(date, localTime, course.timezone),
-        localTime,
-        holes,
-        price: slot.price ?? slot.fee ?? null,
-        currency: "CAD",
-        playersAvailable: spots,
-        bookingUrl: courseUrl(course, date),
-      });
-    }
-    return out;
+      const body = new URLSearchParams({
+        __RequestVerificationToken: token,
+        selectedGolfCourse: cfg.guid,
+        SearchDate: searchDate(date, course.timezone),
+        Time: "",
+        NumberOfHoles: String(holes),
+        NumberOfPlayers: "1", // "Any" — we report real spots and filter later
+        "X-Requested-With": "XMLHttpRequest",
+      }).toString();
+
+      const slots = (await page.evaluate(
+        `(function () {
+          return fetch(${JSON.stringify(`${cfg.basePath}/golf/TeeTimeSearch`)}, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+            body: ${JSON.stringify(body)},
+          })
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+              var doc = new DOMParser().parseFromString(html, 'text/html');
+              var btns = Array.prototype.slice.call(doc.querySelectorAll('button[data-time]'));
+              return btns.map(function (b) {
+                return { time: b.getAttribute('data-time'), spaces: b.getAttribute('data-spaces') };
+              });
+            })
+            .catch(function (e) { return { error: String(e) }; });
+        })()`,
+      )) as RawSlot[] | { error: string };
+
+      if (!Array.isArray(slots)) {
+        throw new Error(`${course.id}: tee time search failed (${(slots as { error: string }).error})`);
+      }
+
+      const out: TeeTime[] = [];
+      for (const s of slots) {
+        if (!s.time) continue;
+        const hm = to24h(s.time);
+        if (!hm) continue;
+        const open = Math.max(0, Math.min(4, Number(s.spaces ?? 0)));
+        if (open <= 0) continue;
+        const localTime = pad(hm);
+        out.push({
+          course: course.name,
+          courseId: course.id,
+          startTime: toIso(date, localTime, course.timezone),
+          localTime,
+          holes,
+          price: null,
+          currency: "CAD",
+          playersAvailable: open,
+          bookingUrl: courseUrl(course),
+        });
+      }
+      return out;
+    });
   },
 };

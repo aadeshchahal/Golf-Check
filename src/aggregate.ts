@@ -1,11 +1,13 @@
 import type { Course, CourseAdapter, CourseResult, Holes, Query, TeeTime } from "./types.js";
 import { enabledCourses } from "./courses.js";
-import { chronogolfAdapter } from "./adapters/chronogolf.js";
+import { foreUpAdapter } from "./adapters/foreup.js";
+import { teeOnAdapter } from "./adapters/teeon.js";
 import { perfectMindAdapter } from "./adapters/perfectmind.js";
 import { minutesOfDay } from "./time.js";
 
 const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
-  chronogolf: chronogolfAdapter,
+  foreup: foreUpAdapter,
+  teeon: teeOnAdapter,
   perfectmind: perfectMindAdapter,
 };
 
@@ -17,17 +19,19 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(courseId: string, date: string, holes: Holes): string {
-  return `${courseId}:${date}:${holes}`;
+// Party size is part of the key because some backends (Tee-On) filter the tee
+// sheet by it upstream, so results genuinely differ per player count.
+function cacheKey(courseId: string, date: string, holes: Holes, players: number): string {
+  return `${courseId}:${date}:${holes}:${players}`;
 }
 
-async function fetchCourse(course: Course, date: string, holes: Holes): Promise<TeeTime[]> {
-  const key = cacheKey(course.id, date, holes);
+async function fetchCourse(course: Course, date: string, holes: Holes, players: number): Promise<TeeTime[]> {
+  const key = cacheKey(course.id, date, holes, players);
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
 
   const adapter = ADAPTERS[course.backend];
-  const value = await adapter.fetchAvailability(course, date, holes);
+  const value = await adapter.fetchAvailability(course, date, holes, players);
   cache.set(key, { expires: Date.now() + CACHE_TTL_MS, value });
   return value;
 }
@@ -46,7 +50,7 @@ function withinQuery(t: TeeTime, q: Query): boolean {
 export async function aggregate(q: Query): Promise<CourseResult[]> {
   const courses = enabledCourses();
   const settled = await Promise.allSettled(
-    courses.map((c) => fetchCourse(c, q.date, q.holes)),
+    courses.map((c) => fetchCourse(c, q.date, q.holes, q.players)),
   );
 
   return courses.map((course, i): CourseResult => {

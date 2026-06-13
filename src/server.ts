@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { aggregate, flatten } from "./aggregate.js";
-import { closeBrowser } from "./adapters/perfectmind.js";
+import { closeBrowser } from "./browser.js";
 import type { Holes, Query } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
