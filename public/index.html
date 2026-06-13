@@ -24,6 +24,10 @@
         font: inherit; padding: 0.5rem; border-radius: 8px;
         border: 1px solid rgba(127,127,127,0.4); background: transparent; color: inherit;
       }
+      option { background: #1a1a1a; color: #fff; }
+      @media (prefers-color-scheme: light) {
+        option { background: #fff; color: #000; }
+      }
       button {
         background: #2f9e44; color: white; border: none; cursor: pointer;
         font-weight: 600; grid-column: 1 / -1;
@@ -35,6 +39,20 @@
         border: 1px solid rgba(127,127,127,0.4);
       }
       .seg button.active { background: #2f9e44; color: white; border-color: #2f9e44; }
+      input[type="range"] {
+        -webkit-appearance: none; appearance: none;
+        width: 100%; height: 6px; border-radius: 4px;
+        background: rgba(127,127,127,0.3); outline: none; padding: 0; border: none;
+        margin: 10px 0;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 20px; height: 20px; border-radius: 50%;
+        background: #2f9e44; cursor: pointer; border: 2px solid #fff;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      }
+      #time-display { font-weight: 600; color: #2f9e44; margin-left: auto; }
+      .time-label-wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
       table { width: 100%; border-collapse: collapse; margin-top: 1.25rem; }
       th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid rgba(127,127,127,0.2); }
       th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #888; }
@@ -54,8 +72,12 @@
       <label>Date
         <input type="date" id="date" required />
       </label>
-      <label>Around time
-        <input type="time" id="time" value="08:00" required />
+      <label>
+        <div class="time-label-wrap">
+          Around time <span id="time-display">8:00 AM</span>
+        </div>
+        <input type="range" id="time-slider" min="360" max="1200" step="15" value="480" />
+        <input type="hidden" id="time" value="08:00" />
       </label>
       <label>Window
         <select id="window">

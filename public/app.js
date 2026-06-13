@@ -5,6 +5,27 @@ let holes = 18;
 // default date = today
 $("date").value = new Date().toISOString().slice(0, 10);
 
+// time slider logic (6am to 8pm, 15 min increments)
+const timeSlider = $("time-slider");
+const timeDisplay = $("time-display");
+const timeHidden = $("time");
+
+function updateTimeDisplay() {
+  const mins = parseInt(timeSlider.value, 10);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const hh = String(h).padStart(2, "0");
+  const mm = String(m).padStart(2, "0");
+  const ampm = h < 12 ? "AM" : "PM";
+  const h12 = h <= 12 ? (h === 0 ? 12 : h) : h - 12;
+  
+  timeDisplay.textContent = `${h12}:${mm} ${ampm}`;
+  timeHidden.value = `${hh}:${mm}`;
+}
+
+timeSlider.addEventListener("input", updateTimeDisplay);
+updateTimeDisplay();
+
 // 9/18 segmented toggle
 $("holes").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-holes]");
