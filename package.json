@@ -1,0 +1,23 @@
+{
+  "name": "golf-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal tee-time aggregator for Edmonton-area golf courses",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "discover": "tsx scripts/discover-ids.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/static": "^7.0.4",
+    "fastify": "^4.28.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "playwright": "^1.47.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
