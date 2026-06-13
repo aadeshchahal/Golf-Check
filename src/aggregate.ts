@@ -71,6 +71,31 @@ export async function aggregate(q: Query): Promise<CourseResult[]> {
   });
 }
 
+/** Query every enabled course in parallel and return per-course results via callback.
+ *  A failure in one course never affects the others. */
+export async function streamAggregate(q: Query, onResult: (r: CourseResult) => void): Promise<void> {
+  const courses = enabledCourses();
+  const promises = courses.map(async (course) => {
+    try {
+      const value = await fetchCourse(course, q.date, q.holes, q.players);
+      const teeTimes = value
+        .filter((t) => withinQuery(t, q))
+        .sort((a, b) => a.localTime.localeCompare(b.localTime));
+      onResult({ courseId: course.id, course: course.name, ok: true, teeTimes });
+    } catch (e) {
+      onResult({
+        courseId: course.id,
+        course: course.name,
+        ok: false,
+        teeTimes: [],
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  await Promise.allSettled(promises);
+}
+
 /** Flatten + sort all successful tee times across courses by time. */
 export function flatten(results: CourseResult[]): TeeTime[] {
   return results

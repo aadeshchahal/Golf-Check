@@ -46,8 +46,15 @@ function fmtTime(hhmm) {
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-$("form").addEventListener("submit", async (e) => {
+let currentStream = null;
+
+$("form").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (currentStream) {
+    currentStream.close();
+    currentStream = null;
+  }
+
   const params = new URLSearchParams({
     date: $("date").value,
     time: $("time").value,
@@ -61,44 +68,68 @@ $("form").addEventListener("submit", async (e) => {
   $("results").hidden = true;
   $("courseStatus").innerHTML = "";
 
-  let data;
-  try {
-    const res = await fetch(`/api/availability?${params}`);
-    data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  } catch (err) {
-    $("status").textContent = `Error: ${err.message}`;
-    $("status").className = "status err";
-    return;
-  }
-
   const tbody = $("results").querySelector("tbody");
   tbody.innerHTML = "";
-  for (const t of data.teeTimes) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${fmtTime(t.localTime)}</td>
-      <td>${t.course}</td>
-      <td>${t.holes}</td>
-      <td><span class="pill">${t.playersAvailable}</span></td>
-      <td>${fmtPrice(t)}</td>
-      <td><a class="book" href="${t.bookingUrl}" target="_blank" rel="noopener">Book ↗</a></td>`;
-    tbody.appendChild(tr);
-  }
 
-  const n = data.teeTimes.length;
-  $("status").textContent = n
-    ? `${n} tee time${n === 1 ? "" : "s"} found.`
-    : "No tee times match those filters.";
-  $("status").className = "status";
-  $("results").hidden = n === 0;
+  let allTeeTimes = [];
+  const courseStatuses = [];
 
-  // per-course status (errors / counts) in a collapsible
-  const rows = data.courses
-    .map((c) => {
-      if (c.ok) return `<li>${c.course}: ${c.teeTimes.length} match${c.teeTimes.length === 1 ? "" : "es"}</li>`;
-      return `<li class="err">${c.course}: ${c.error}</li>`;
-    })
-    .join("");
-  $("courseStatus").innerHTML = `<summary>Course status</summary><ul>${rows}</ul>`;
+  const es = new EventSource(`/api/availability?${params}`);
+  currentStream = es;
+  
+  es.onmessage = (event) => {
+    if (event.data === "[DONE]") {
+      es.close();
+      currentStream = null;
+      const n = allTeeTimes.length;
+      $("status").textContent = n
+        ? `${n} tee time${n === 1 ? "" : "s"} found.`
+        : "No tee times match those filters.";
+      $("status").className = "status";
+      $("results").hidden = n === 0;
+      
+      const rows = courseStatuses
+        .map((c) => {
+          if (c.ok) return `<li>${c.course}: ${c.teeTimes.length} match${c.teeTimes.length === 1 ? "" : "es"}</li>`;
+          return `<li class="err">${c.course}: ${c.error}</li>`;
+        })
+        .join("");
+      $("courseStatus").innerHTML = `<summary>Course status</summary><ul>${rows}</ul>`;
+      return;
+    }
+
+    const c = JSON.parse(event.data);
+    courseStatuses.push(c);
+    
+    if (c.ok && c.teeTimes.length > 0) {
+      allTeeTimes.push(...c.teeTimes);
+      allTeeTimes.sort((a, b) => a.localTime.localeCompare(b.localTime) || a.course.localeCompare(b.course));
+      
+      tbody.innerHTML = "";
+      for (const t of allTeeTimes) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${fmtTime(t.localTime)}</td>
+          <td>${t.course}</td>
+          <td>${t.holes}</td>
+          <td><span class="pill">${t.playersAvailable}</span></td>
+          <td>${fmtPrice(t)}</td>
+          <td><a class="book" href="${t.bookingUrl}" target="_blank" rel="noopener">Book ↗</a></td>`;
+        tbody.appendChild(tr);
+      }
+      $("results").hidden = false;
+      
+      const n = allTeeTimes.length;
+      $("status").textContent = `Searching… (${n} found so far)`;
+    }
+  };
+
+  es.onerror = (err) => {
+    es.close();
+    currentStream = null;
+    if (allTeeTimes.length === 0) {
+      $("status").textContent = `Error connecting to stream.`;
+      $("status").className = "status err";
+    }
+  };
 });

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
-import { aggregate, flatten } from "./aggregate.js";
+import { streamAggregate, flatten } from "./aggregate.js";
 import { closeBrowser } from "./browser.js";
 import type { Holes, Query } from "./types.js";
 
@@ -42,12 +42,18 @@ app.get("/api/availability", async (req, reply) => {
     return { error: e instanceof Error ? e.message : "bad request" };
   }
 
-  const results = await aggregate(query);
-  return {
-    query,
-    courses: results,
-    teeTimes: flatten(results),
-  };
+  reply.raw.setHeader("Content-Type", "text/event-stream");
+  reply.raw.setHeader("Cache-Control", "no-cache");
+  reply.raw.setHeader("Connection", "keep-alive");
+  reply.raw.flushHeaders();
+
+  await streamAggregate(query, (result) => {
+    reply.raw.write(`data: ${JSON.stringify(result)}\n\n`);
+  });
+
+  reply.raw.write(`data: [DONE]\n\n`);
+  reply.raw.end();
+  return reply;
 });
 
 const port = Number(process.env.PORT ?? 3000);
