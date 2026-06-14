@@ -64,17 +64,19 @@ export const perfectMindAdapter: CourseAdapter = {
       const page = await ctx.newPage();
       await page.goto(queueUrl(course), { waitUntil: "domcontentloaded", timeout: 60_000 });
 
-      // Wait out the virtual queue (it redirects to the search page when ready).
-      let released = false;
-      for (let i = 0; i < 25; i++) {
-        if (/teetimesearch/i.test(page.url())) { released = true; break; }
-        await page.waitForTimeout(2000);
+      // Wait out the virtual queue: it redirects to the search page when ready.
+      // waitForURL resolves the instant we're released (and immediately if we're
+      // already past the queue), instead of polling the URL every 2s.
+      await page.waitForURL(/teetimesearch/i, { timeout: 60_000 }).catch(() => {});
+      if (!/teetimesearch/i.test(page.url())) {
+        throw new Error(`${course.id}: still queued after 60s (peak load) — try again`);
       }
-      if (!released && !/teetimesearch/i.test(page.url())) {
-        throw new Error(`${course.id}: still queued after 50s (peak load) — try again`);
-      }
-      await page.waitForTimeout(1500);
 
+      // Read the antiforgery token as soon as the search form is in the DOM,
+      // rather than blocking on a fixed delay.
+      await page
+        .waitForSelector('input[name="__RequestVerificationToken"]', { timeout: 10_000 })
+        .catch(() => {});
       const token = String(
         await page.evaluate(
           `(document.querySelector('input[name="__RequestVerificationToken"]') || {}).value || ''`,
