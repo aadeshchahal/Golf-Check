@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { streamAggregate, flatten } from "./aggregate.js";
-import { closeBrowser } from "./browser.js";
+import { closeBrowser, warmBrowser } from "./browser.js";
 import { enabledCourses } from "./courses.js";
 import type { Holes, Query } from "./types.js";
 
@@ -69,10 +69,16 @@ app.get("/api/availability", async (req, reply) => {
 });
 
 const port = Number(process.env.PORT ?? 3000);
-app.listen({ port, host: "0.0.0.0" }).catch((err) => {
-  app.log.error(err);
-  process.exit(1);
-});
+app
+  .listen({ port, host: "0.0.0.0" })
+  .then(() => {
+    // Pre-warm Chromium so the first browser-driven search skips the launch cost.
+    void warmBrowser().catch(() => {});
+  })
+  .catch((err) => {
+    app.log.error(err);
+    process.exit(1);
+  });
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, async () => {
