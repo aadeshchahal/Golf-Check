@@ -30,14 +30,17 @@ public/index.html + app.js  (form: date/time/window/players/holes)
                    ├─ perfectmind adapter src/adapters/perfectmind.ts (Playwright; virtual queue)
                    │     Victoria, Riverside
                    ├─ filter: time window + holes + open spots (party size)
-                   ├─ in-memory cache (~3 min, keyed incl. party size)
+                   ├─ in-memory cache (~3 min; party size in key only for Tee-On,
+                   │   which filters upstream — ForeUp/PerfectMind share across sizes)
                    └─ Promise.allSettled: one course failing never blanks others
 ```
 
 Key files: `src/types.ts` (TeeTime/Query/CourseAdapter + per-backend configs),
 `src/courses.ts` (registry: which backend + ids/codes/guids per course),
 `src/time.ts` (Edmonton MDT/MST offset math), `src/browser.ts` (shared
-lazy-singleton Chromium for the two browser-driven adapters).
+lazy-singleton Chromium for the two browser-driven adapters; aborts
+image/media/font/stylesheet requests since we only parse HTML, and exposes
+`warmBrowser()` which the server calls after `listen` to pre-launch Chromium).
 
 ## Backends (captured ids live in src/courses.ts)
 
@@ -64,6 +67,8 @@ lazy-singleton Chromium for the two browser-driven adapters).
   Riverside). Builds, typechecks, runs; live results, filtering, caching, and
   per-course error isolation all verified against the real sites (2026-06).
 - **UI & Performance:** The frontend is mobile-responsive (stacking table cards on narrow screens), and search results are streamed to the client incrementally via Server-Sent Events (SSE) as each course finishes, preventing long loading screens.
+- **Course selector:** the form has a per-course toggle (an "All" chip + one chip per course), defaulting to none selected. The selected ids ride along as a `courses=` param; `GET /api/courses` feeds the chips from `src/courses.ts` (single source of truth). Skipping the City courses avoids their slow virtual queue.
+- **Search speed (2026-06):** the browser adapters wait on the actual data selector instead of `networkidle`/`waitForURL` timeouts, which cut Tee-On from ~65s to ~5s. Eagle Rock (ForeUp) is ~1s. The City (PerfectMind) courses are still bounded by the virtual queue (~30–48s cold, load-dependent) — that wait is the floor until/unless a background queue pre-warm is added (see Out of scope).
 - **Country Side (Sherwood Park) is intentionally omitted.** It runs on Club Prophet
   Systems (`countrysideab.cps.golf`), a clean JSON API but **behind a Cloudflare bot
   challenge** that 403s automated/headless requests. Revisit only if a reliable,
@@ -78,8 +83,11 @@ npm run dev                       # http://localhost:3000
 npm run typecheck
 ```
 
-First request lazily launches Chromium and the City courses wait out the queue, so
-the initial call can take ~30–60s; subsequent calls hit the 3-min cache.
+Chromium is pre-warmed at startup, so the first search no longer pays the launch
+cost. ForeUp (~1s) and Tee-On (~5s) are fast; the City (PerfectMind) courses still
+wait out their virtual queue on a cold fetch (~30–48s, load-dependent). Subsequent
+calls hit the 3-min cache — and because the cache is shared across party size for
+ForeUp/PerfectMind, changing only the player count returns near-instantly.
 
 ### Hosting & Sharing (Crucial Context)
 We attempted to host this on Google Cloud Run and Vercel, but both failed. The golf courses (especially PerfectMind and Tee-On) use aggressive Cloudflare Bot Protection that instantly blocks known Datacenter IPs. Playwright also struggles with memory/bundle-size limits on serverless platforms.
@@ -105,6 +113,14 @@ sparse — those are real, not bugs.
 - `page.evaluate` callbacks are passed as **strings** in the browser-driven adapters:
   tsx/esbuild otherwise injects a `__name` helper that isn't defined in the page and
   throws `ReferenceError: __name`.
+- **Don't wait on `networkidle`** for these legacy/queue sites — they keep connections
+  open, so it burns the full timeout. Wait on the actual element you need
+  (`page.waitForSelector(...)`) or the destination URL (`page.waitForURL(...)`) instead.
+  Gotos use `domcontentloaded`, not `networkidle`.
+- The cache key in `aggregate.ts` is **backend-aware**: party size is part of it only
+  for Tee-On (which filters the sheet upstream). ForeUp/PerfectMind fetch the whole
+  sheet and we filter spots in `withinQuery`, so they share one entry across party
+  sizes — keep that invariant if you touch caching or the open-spots filter.
 - Be a good citizen: results are cached; don't hammer endpoints; no auto-booking.
 - A course backend being unreachable surfaces as a per-course error in the response
   (`ok:false`), never a blank page — see `Promise.allSettled` in `aggregate.ts`.
@@ -114,3 +130,13 @@ sparse — those are real, not bugs.
 Country Side / Prophet (Cloudflare), booking/checkout, accounts, push alerts when a
 desired slot opens, more courses, GolfNow/Supreme Golf integration. If this ever
 becomes a product for other golfers, switch to official partner APIs.
+
+**Background PerfectMind queue pre-warm (the remaining City-course speed lever).**
+The ~30–48s on Victoria/Riverside is the City's virtual queue. A warm-pool that holds
+an already-released session (cookies + `__RequestVerificationToken`) per City course,
+refreshed on a background timer, would let user searches POST `TeeTimeSearch` directly
+and skip the queue (dropping them to ~1–3s, like Tee-On). Deliberately not built: it
+shifts the server from polite on-demand querying to **proactively holding a queue slot**
+even when nobody's searching, and adds token-expiry/refresh/fallback complexity.
+Before building, first **measure how long a released session stays valid** (that sets
+the refresh cadence and how impolite it is). Should be an opt-in flag, default off.
