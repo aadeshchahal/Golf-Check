@@ -63,6 +63,7 @@ lazy-singleton Chromium for the two browser-driven adapters).
 - **Working end-to-end for 5 courses** (Eagle Rock, Mill Woods, Coloniale, Victoria,
   Riverside). Builds, typechecks, runs; live results, filtering, caching, and
   per-course error isolation all verified against the real sites (2026-06).
+- **UI & Performance:** The frontend is mobile-responsive (stacking table cards on narrow screens), and search results are streamed to the client incrementally via Server-Sent Events (SSE) as each course finishes, preventing long loading screens.
 - **Country Side (Sherwood Park) is intentionally omitted.** It runs on Club Prophet
   Systems (`countrysideab.cps.golf`), a clean JSON API but **behind a Cloudflare bot
   challenge** that 403s automated/headless requests. Revisit only if a reliable,
@@ -79,6 +80,10 @@ npm run typecheck
 
 First request lazily launches Chromium and the City courses wait out the queue, so
 the initial call can take ~30–60s; subsequent calls hit the 3-min cache.
+
+### Hosting & Sharing (Crucial Context)
+We attempted to host this on Google Cloud Run and Vercel, but both failed. The golf courses (especially PerfectMind and Tee-On) use aggressive Cloudflare Bot Protection that instantly blocks known Datacenter IPs. Playwright also struggles with memory/bundle-size limits on serverless platforms.
+**Resolution:** To share this with friends, the project must run on a residential IP (your laptop). Start the dev server (`npm run dev`), then use a secure tunnel like Ngrok (`npx ngrok http 3000`) to generate a public link. *Avoid `localtunnel` as it publicly exposes your home IP address on its warning screen.*
 
 ## Verifying correctness
 
