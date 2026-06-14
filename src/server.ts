@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { streamAggregate, flatten } from "./aggregate.js";
 import { closeBrowser } from "./browser.js";
+import { enabledCourses } from "./courses.js";
 import type { Holes, Query } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,13 +26,24 @@ function parseQuery(q: Record<string, unknown>): Query {
   const holesNum = Number(q.holes ?? 18);
   if (holesNum !== 9 && holesNum !== 18) throw new Error("holes must be 9 or 18");
 
-  return { date, time, windowMinutes, players, holes: holesNum as Holes };
+  // Optional comma-separated course ids; empty/absent means "all enabled".
+  const courseIds = String(q.courses ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return { date, time, windowMinutes, players, holes: holesNum as Holes, courseIds };
 }
 
 function clamp(n: number, lo: number, hi: number): number {
   if (Number.isNaN(n)) return lo;
   return Math.max(lo, Math.min(hi, n));
 }
+
+// Course registry for the front-end's selector (single source of truth).
+app.get("/api/courses", async () => {
+  return enabledCourses().map((c) => ({ id: c.id, name: c.name }));
+});
 
 app.get("/api/availability", async (req, reply) => {
   let query: Query;

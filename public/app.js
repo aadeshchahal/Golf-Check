@@ -34,6 +34,50 @@ $("holes").addEventListener("click", (e) => {
   for (const b of $("holes").children) b.classList.toggle("active", b === btn);
 });
 
+// course selector: load the registry, render a chip per course (all selected
+// by default), plus an "All" convenience chip.
+const coursesEl = $("courses");
+const allBtn = coursesEl.querySelector('button[data-course="all"]');
+let courseChips = [];
+
+function selectedCourseIds() {
+  return courseChips.filter((b) => b.classList.contains("active")).map((b) => b.dataset.course);
+}
+
+function syncAllChip() {
+  const all = courseChips.length > 0 && courseChips.every((b) => b.classList.contains("active"));
+  allBtn.classList.toggle("active", all);
+}
+
+fetch("/api/courses")
+  .then((r) => r.json())
+  .then((list) => {
+    for (const c of list) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.course = c.id;
+      btn.textContent = c.name;
+      btn.classList.add("active");
+      coursesEl.appendChild(btn);
+      courseChips.push(btn);
+    }
+    syncAllChip();
+  })
+  .catch(() => {});
+
+coursesEl.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-course]");
+  if (!btn) return;
+  if (btn === allBtn) {
+    for (const b of courseChips) b.classList.add("active");
+  } else {
+    // toggle, but never let the selection drop to zero
+    if (btn.classList.contains("active") && selectedCourseIds().length === 1) return;
+    btn.classList.toggle("active");
+  }
+  syncAllChip();
+});
+
 function fmtPrice(t) {
   if (t.price == null) return "—";
   return `$${t.price.toFixed(0)} ${t.currency}`;
@@ -62,6 +106,12 @@ $("form").addEventListener("submit", (e) => {
     players: $("players").value,
     holes: String(holes),
   });
+
+  // Only send `courses` when it's a strict subset; all-selected = search all.
+  const selected = selectedCourseIds();
+  if (selected.length && selected.length < courseChips.length) {
+    params.set("courses", selected.join(","));
+  }
 
   $("status").textContent = "Searching…";
   $("status").className = "status muted";

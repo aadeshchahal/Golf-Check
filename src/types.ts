@@ -41,6 +41,8 @@ export interface Query {
   /** Minimum open player spots required (1-4). */
   players: number;
   holes: Holes;
+  /** Restrict the search to these course ids. Empty/undefined = all enabled. */
+  courseIds?: string[];
 }
 
 /** Per-course aggregation result, including failures so the UI can show which

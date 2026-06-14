@@ -36,6 +36,15 @@ async function fetchCourse(course: Course, date: string, holes: Holes, players: 
   return value;
 }
 
+/** Resolve which courses a query targets: the selected ids (intersected with
+ *  the enabled set), or every enabled course when none are specified. */
+function selectedCourses(q: Query): Course[] {
+  const courses = enabledCourses();
+  if (!q.courseIds || q.courseIds.length === 0) return courses;
+  const wanted = new Set(q.courseIds);
+  return courses.filter((c) => wanted.has(c.id));
+}
+
 /** Keep tee times within [time - window, time + window] and with enough spots. */
 function withinQuery(t: TeeTime, q: Query): boolean {
   if (t.playersAvailable < q.players) return false;
@@ -48,7 +57,7 @@ function withinQuery(t: TeeTime, q: Query): boolean {
 /** Query every enabled course in parallel and return per-course results.
  *  A failure in one course never affects the others. */
 export async function aggregate(q: Query): Promise<CourseResult[]> {
-  const courses = enabledCourses();
+  const courses = selectedCourses(q);
   const settled = await Promise.allSettled(
     courses.map((c) => fetchCourse(c, q.date, q.holes, q.players)),
   );
@@ -74,7 +83,7 @@ export async function aggregate(q: Query): Promise<CourseResult[]> {
 /** Query every enabled course in parallel and return per-course results via callback.
  *  A failure in one course never affects the others. */
 export async function streamAggregate(q: Query, onResult: (r: CourseResult) => void): Promise<void> {
-  const courses = enabledCourses();
+  const courses = selectedCourses(q);
   const promises = courses.map(async (course) => {
     try {
       const value = await fetchCourse(course, q.date, q.holes, q.players);
