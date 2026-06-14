@@ -19,14 +19,17 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
-// Party size is part of the key because some backends (Tee-On) filter the tee
-// sheet by it upstream, so results genuinely differ per player count.
-function cacheKey(courseId: string, date: string, holes: Holes, players: number): string {
-  return `${courseId}:${date}:${holes}:${players}`;
+// Party size is part of the key only for Tee-On, which filters the tee sheet by
+// it upstream, so its results genuinely differ per player count. ForeUp and
+// PerfectMind fetch the whole sheet and we filter party size client-side, so
+// their fetches are identical across party sizes and share one cache entry.
+function cacheKey(course: Course, date: string, holes: Holes, players: number): string {
+  const p = course.backend === "teeon" ? players : "all";
+  return `${course.id}:${date}:${holes}:${p}`;
 }
 
 async function fetchCourse(course: Course, date: string, holes: Holes, players: number): Promise<TeeTime[]> {
-  const key = cacheKey(course.id, date, holes, players);
+  const key = cacheKey(course, date, holes, players);
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
 
