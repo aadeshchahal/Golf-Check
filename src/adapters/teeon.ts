@@ -50,8 +50,8 @@ export const teeOnAdapter: CourseAdapter = {
     return withContext(async (ctx) => {
       const page = await ctx.newPage();
 
-      await page.goto(comboUrl(cfg.courseCode), { waitUntil: "networkidle", timeout: 45_000 });
-      await page.goto(searchUrl(cfg.courseGroupId, cfg.courseCode), { waitUntil: "networkidle", timeout: 45_000 });
+      await page.goto(comboUrl(cfg.courseCode), { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await page.goto(searchUrl(cfg.courseGroupId, cfg.courseCode), { waitUntil: "domcontentloaded", timeout: 30_000 });
 
       // Tee-On only offers a fixed booking window in the Date dropdown.
       const hasDate = await page.evaluate(
@@ -65,20 +65,20 @@ export const teeOnAdapter: CourseAdapter = {
       await page.check(`input[name="Holes"][value="${holes}"]`).catch(() => {});
       await page.check(`input[name="Players"][value="${players}"]`).catch(() => {});
 
-      // Submit the search form (no plain submit button; it posts via script).
-      // Set up the navigation wait BEFORE triggering submit to avoid a race.
-      const nav = page.waitForURL(/WebBookingSearchResults/i, { timeout: 45_000 }).catch(() => {});
+      // Submit the search form (no plain submit button; it posts via script),
+      // then wait directly for the tee-time cards. We deliberately do NOT wait
+      // on networkidle: this legacy site keeps connections open, so networkidle
+      // burns its full timeout even though the cards are in the DOM seconds
+      // earlier. waitForSelector auto-waits across the submit navigation and
+      // tolerates "no times" (empty day -> selector never appears -> []).
       await page.evaluate(`document.querySelector('form').submit()`);
-      await nav;
-      await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+      await page
+        .waitForSelector(".search-results-tee-times-box", { timeout: 15_000 })
+        .catch(() => {});
 
       if (!/WebBookingSearchResults/i.test(page.url())) {
         throw new Error(`${course.id}: Tee-On search did not return results`);
       }
-      // Result cards render client-side; wait briefly, tolerate "no times".
-      await page
-        .waitForSelector(".search-results-tee-times-box", { timeout: 8000 })
-        .catch(() => {});
 
       const cards = (await page.evaluate(
         `(function () {
