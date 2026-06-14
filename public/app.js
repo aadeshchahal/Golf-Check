@@ -57,7 +57,6 @@ fetch("/api/courses")
       btn.type = "button";
       btn.dataset.course = c.id;
       btn.textContent = c.name;
-      btn.classList.add("active");
       coursesEl.appendChild(btn);
       courseChips.push(btn);
     }
@@ -69,10 +68,10 @@ coursesEl.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-course]");
   if (!btn) return;
   if (btn === allBtn) {
-    for (const b of courseChips) b.classList.add("active");
+    // toggle: if everything is already on, clear it; otherwise select all
+    const turnOn = !courseChips.every((b) => b.classList.contains("active"));
+    for (const b of courseChips) b.classList.toggle("active", turnOn);
   } else {
-    // toggle, but never let the selection drop to zero
-    if (btn.classList.contains("active") && selectedCourseIds().length === 1) return;
     btn.classList.toggle("active");
   }
   syncAllChip();
@@ -99,6 +98,13 @@ $("form").addEventListener("submit", (e) => {
     currentStream = null;
   }
 
+  const selected = selectedCourseIds();
+  if (selected.length === 0) {
+    $("status").textContent = "Select at least one course to search.";
+    $("status").className = "status muted";
+    return;
+  }
+
   const params = new URLSearchParams({
     date: $("date").value,
     time: $("time").value,
@@ -108,8 +114,7 @@ $("form").addEventListener("submit", (e) => {
   });
 
   // Only send `courses` when it's a strict subset; all-selected = search all.
-  const selected = selectedCourseIds();
-  if (selected.length && selected.length < courseChips.length) {
+  if (selected.length < courseChips.length) {
     params.set("courses", selected.join(","));
   }
 
