@@ -56,10 +56,14 @@ image/media/font/stylesheet requests since we only parse HTML, and exposes
   dates surface a per-course error), and blocks single-golfer empty-slot bookings
   (so `players=1` legitimately returns few/none at these courses).
 - **PerfectMind / MoveLearnPlay** — Victoria, Riverside (City of Edmonton). Booking
-  sits behind a **virtual queue** (`golf/sendtoqueue` → `/queue/wait`, released in
-  ~seconds off-peak). After release we POST `golf/TeeTimeSearch` with the page's
-  `__RequestVerificationToken`; the HTML response has one `button[data-time]`
-  `[data-spaces]` per slot. No price exposed here (City fees are fixed) → price null.
+  sits behind a **virtual queue** (`golf/sendtoqueue` → `/queue/wait`). After release
+  we POST `golf/TeeTimeSearch` with the page's `__RequestVerificationToken`; the HTML
+  response has one `button[data-time]` `[data-spaces]` per slot (an empty date returns
+  a 200 with an `alert-danger` "No times available" — that's a real empty result, not
+  an error). No price exposed here (City fees are fixed) → price null. A released
+  session can serve **many** searches, so a reactive warm pool reuses it to skip the
+  queue (see Search speed). Measured: the queue is ~10–20s, but `TeeTimeSearch` itself
+  is **~14s server-side** — slow because it's a capacity-limited, queue-gated backend.
 
 ## Current state
 
@@ -68,7 +72,7 @@ image/media/font/stylesheet requests since we only parse HTML, and exposes
   per-course error isolation all verified against the real sites (2026-06).
 - **UI & Performance:** The frontend is mobile-responsive (stacking table cards on narrow screens), and search results are streamed to the client incrementally via Server-Sent Events (SSE) as each course finishes, preventing long loading screens.
 - **Course selector:** the form has a per-course toggle (an "All" chip + one chip per course), defaulting to none selected. The selected ids ride along as a `courses=` param; `GET /api/courses` feeds the chips from `src/courses.ts` (single source of truth). Skipping the City courses avoids their slow virtual queue.
-- **Search speed (2026-06):** the browser adapters wait on the actual data selector instead of `networkidle`/`waitForURL` timeouts, which cut Tee-On from ~65s to ~5s. Eagle Rock (ForeUp) is ~1s. The City (PerfectMind) courses are still bounded by the virtual queue (~30–48s cold, load-dependent) — that wait is the floor until/unless a background queue pre-warm is added (see Out of scope).
+- **Search speed (2026-06):** the browser adapters wait on the actual data selector instead of `networkidle`/`waitForURL` timeouts, which cut Tee-On from ~65s to ~5s. Eagle Rock (ForeUp) is ~1s. The City (PerfectMind) courses are ~33s cold; a **reactive warm pool** (`src/adapters/perfectmind.ts`) reuses the queue-released session so repeat searches skip the queue (~14s). The residual ~14s is the City's `TeeTimeSearch` endpoint itself and is the floor — we can't beat it. Reactive only (no background keep-alive) to stay a good citizen; toggle with `PERFECTMIND_PREWARM=0`.
 - **Country Side (Sherwood Park) is intentionally omitted.** It runs on Club Prophet
   Systems (`countrysideab.cps.golf`), a clean JSON API but **behind a Cloudflare bot
   challenge** that 403s automated/headless requests. Revisit only if a reliable,
@@ -131,12 +135,11 @@ Country Side / Prophet (Cloudflare), booking/checkout, accounts, push alerts whe
 desired slot opens, more courses, GolfNow/Supreme Golf integration. If this ever
 becomes a product for other golfers, switch to official partner APIs.
 
-**Background PerfectMind queue pre-warm (the remaining City-course speed lever).**
-The ~30–48s on Victoria/Riverside is the City's virtual queue. A warm-pool that holds
-an already-released session (cookies + `__RequestVerificationToken`) per City course,
-refreshed on a background timer, would let user searches POST `TeeTimeSearch` directly
-and skip the queue (dropping them to ~1–3s, like Tee-On). Deliberately not built: it
-shifts the server from polite on-demand querying to **proactively holding a queue slot**
-even when nobody's searching, and adds token-expiry/refresh/fallback complexity.
-Before building, first **measure how long a released session stays valid** (that sets
-the refresh cadence and how impolite it is). Should be an opt-in flag, default off.
+**PerfectMind queue pre-warm — DONE (reactive).** Built as a reactive warm pool in
+`src/adapters/perfectmind.ts`: a queue-released session is reused to skip the queue on
+repeat searches (~33s → ~14s). Measuring during the build revealed the gain is capped:
+`TeeTimeSearch` is itself ~14s server-side (the floor), and a session stays reusable
+for minutes. The remaining lever would be a **proactive background keep-alive** to keep
+sessions warm between sittings — deliberately NOT done, because each keep-alive probe
+is a real ~14s search against the City's capacity-limited backend (un-good-citizen).
+If ever revisited, it should stay opt-in and load-bounded.
