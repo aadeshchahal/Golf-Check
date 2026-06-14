@@ -30,13 +30,21 @@ export async function warmBrowser(): Promise<void> {
 // card rendering, and the in-page TeeTimeSearch fetch all depend on them.
 const BLOCKED_RESOURCES = new Set(["image", "media", "font", "stylesheet"]);
 
-/** Run `fn` with a fresh, isolated browser context that is always closed. */
-export async function withContext<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> {
+/** Create a fresh, isolated context with our UA + resource blocking. The caller
+ *  owns it and must close it — used by the PerfectMind warm pool, which keeps a
+ *  context alive across requests. For one-shot work prefer `withContext`. */
+export async function newContext(): Promise<BrowserContext> {
   const browser = await getBrowser();
   const ctx = await browser.newContext({ userAgent: USER_AGENT, locale: "en-CA" });
   await ctx.route("**/*", (route) =>
     BLOCKED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue(),
   );
+  return ctx;
+}
+
+/** Run `fn` with a fresh, isolated browser context that is always closed. */
+export async function withContext<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> {
+  const ctx = await newContext();
   try {
     return await fn(ctx);
   } finally {

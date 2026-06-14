@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { streamAggregate, flatten } from "./aggregate.js";
 import { closeBrowser, warmBrowser } from "./browser.js";
+import { closePerfectMindPool } from "./adapters/perfectmind.js";
 import { enabledCourses } from "./courses.js";
 import type { Holes, Query } from "./types.js";
 
@@ -82,6 +83,7 @@ app
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, async () => {
+    await closePerfectMindPool();
     await closeBrowser();
     await app.close();
     process.exit(0);
