@@ -24,27 +24,40 @@ export async function warmBrowser(): Promise<void> {
   await getBrowser();
 }
 
-// Heavy resources we never read — we only parse the page's HTML/DOM. Aborting
-// these cuts page-load time and bandwidth a lot. We deliberately never block
-// document/script/xhr/fetch: the PerfectMind queue JS, Tee-On's client-side
-// card rendering, and the in-page TeeTimeSearch fetch all depend on them.
-const BLOCKED_RESOURCES = new Set(["image", "media", "font", "stylesheet"]);
+// Heavy resource types we never read — blocking them keeps these slow legacy
+// pages fast (without it, Tee-On searches balloon to ~30-60s). By default we
+// also block "stylesheet". EXCEPTION: some Tee-On courses run a CSS-driven
+// "wait timer" overlay and only render their tee-time cards with CSS present;
+// for those, pass { allowStyles: true } (they stay slower — the overlay gates
+// the search — but they return data). Document/script/xhr/fetch are always
+// allowed: the PerfectMind queue JS + in-page TeeTimeSearch fetch and Tee-On's
+// card rendering all depend on them.
+const HEAVY = ["image", "media", "font"];
+
+export interface ContextOpts {
+  /** Keep stylesheets — needed by Tee-On courses whose cards are CSS-gated. */
+  allowStyles?: boolean;
+}
 
 /** Create a fresh, isolated context with our UA + resource blocking. The caller
  *  owns it and must close it — used by the PerfectMind warm pool, which keeps a
  *  context alive across requests. For one-shot work prefer `withContext`. */
-export async function newContext(): Promise<BrowserContext> {
+export async function newContext(opts: ContextOpts = {}): Promise<BrowserContext> {
   const browser = await getBrowser();
+  const blocked = new Set(opts.allowStyles ? HEAVY : [...HEAVY, "stylesheet"]);
   const ctx = await browser.newContext({ userAgent: USER_AGENT, locale: "en-CA" });
   await ctx.route("**/*", (route) =>
-    BLOCKED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue(),
+    blocked.has(route.request().resourceType()) ? route.abort() : route.continue(),
   );
   return ctx;
 }
 
 /** Run `fn` with a fresh, isolated browser context that is always closed. */
-export async function withContext<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> {
-  const ctx = await newContext();
+export async function withContext<T>(
+  fn: (ctx: BrowserContext) => Promise<T>,
+  opts: ContextOpts = {},
+): Promise<T> {
+  const ctx = await newContext(opts);
   try {
     return await fn(ctx);
   } finally {

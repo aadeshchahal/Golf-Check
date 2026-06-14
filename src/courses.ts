@@ -77,6 +77,42 @@ export const COURSES: Course[] = [
       guid: "303ad9dc-752c-4ce7-9029-f9b0be4ae9c0",
     },
   },
+  // Tee-On courses (same backend as Mill Woods/Coloniale). Codes + group ids
+  // captured 2026-06 from each course's own "Book Now" → tee-on.com link.
+  {
+    id: "lewisestates",
+    name: "Lewis Estates",
+    backend: "teeon",
+    timezone: "America/Edmonton",
+    enabled: true,
+    teeon: {
+      courseCode: "LEGC",
+      courseGroupId: 10032,
+      allowStyles: true, // CSS-gated wait-timer course; ~30s but returns data
+    },
+  },
+  {
+    id: "legends",
+    name: "The Legends (Sherwood Park)",
+    backend: "teeon",
+    timezone: "America/Edmonton",
+    enabled: true,
+    teeon: {
+      courseCode: "LEGE",
+      courseGroupId: 11941,
+    },
+  },
+  {
+    id: "jagareridge",
+    name: "Jagare Ridge",
+    backend: "teeon",
+    timezone: "America/Edmonton",
+    enabled: true,
+    teeon: {
+      courseCode: "JAGA",
+      courseGroupId: 10137,
+    },
+  },
 ];
 
 export function enabledCourses(): Course[] {

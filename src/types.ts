@@ -102,6 +102,11 @@ export interface TeeOnConfig {
   courseCode: string;
   /** Numeric course group id shared by a Tee-On operator, e.g. 10342. */
   courseGroupId: number;
+  /** Some Tee-On courses (e.g. Lewis Estates) run a CSS-driven "wait timer"
+   *  overlay and only render tee-time cards with stylesheets enabled. Set this
+   *  so the adapter keeps CSS and rides out the overlay (~30s) — slower, but it
+   *  returns data instead of silently finding 0 cards. */
+  allowStyles?: boolean;
 }
 
 /** PerfectMind / Xplor "MoveLearnPlay" — City of Edmonton (Victoria, Riverside).

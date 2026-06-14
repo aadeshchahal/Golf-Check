@@ -50,7 +50,7 @@ export const teeOnAdapter: CourseAdapter = {
     return withContext(async (ctx) => {
       const page = await ctx.newPage();
 
-      await page.goto(comboUrl(cfg.courseCode), { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await page.goto(comboUrl(cfg.courseCode), { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.goto(searchUrl(cfg.courseGroupId, cfg.courseCode), { waitUntil: "domcontentloaded", timeout: 30_000 });
 
       // Tee-On only offers a fixed booking window in the Date dropdown.
@@ -61,9 +61,13 @@ export const teeOnAdapter: CourseAdapter = {
         throw new Error(`${course.id}: ${date} is outside Tee-On's booking window`);
       }
 
-      await page.selectOption('select[name="Date"]', date);
-      await page.check(`input[name="Holes"][value="${holes}"]`).catch(() => {});
-      await page.check(`input[name="Players"][value="${players}"]`).catch(() => {});
+      // Use a generous action timeout: CSS-gated courses (allowStyles) show a
+      // ~30s "wait timer" overlay that covers the form until it clears, and
+      // Playwright waits for the control to become actionable. Fast courses
+      // (no overlay) act immediately, so this ceiling is harmless to them.
+      await page.selectOption('select[name="Date"]', date, { timeout: 45_000 });
+      await page.check(`input[name="Holes"][value="${holes}"]`, { timeout: 45_000 }).catch(() => {});
+      await page.check(`input[name="Players"][value="${players}"]`, { timeout: 45_000 }).catch(() => {});
 
       // Submit the search form (no plain submit button; it posts via script),
       // then wait directly for the tee-time cards. We deliberately do NOT wait
@@ -116,6 +120,6 @@ export const teeOnAdapter: CourseAdapter = {
         });
       }
       return out;
-    });
+    }, { allowStyles: cfg.allowStyles });
   },
 };
