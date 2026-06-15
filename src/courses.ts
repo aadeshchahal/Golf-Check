@@ -126,6 +126,22 @@ export const COURSES: Course[] = [
       alias: "river-ridge",
     },
   },
+  // Chronogolf / Lightspeed. club/course/public-affiliation ids captured 2026-06
+  // from the booking widget (public JSON API, no browser needed).
+  {
+    id: "broadmoor",
+    name: "Broadmoor (Sherwood Park)",
+    backend: "chronogolf",
+    timezone: "America/Edmonton",
+    enabled: true,
+    chronogolf: {
+      host: "www.chronogolf.ca",
+      clubId: 18170,
+      courseId: 21206,
+      affiliationTypeId: 85414, // "Public"
+      slug: "broadmoor-public-golf-course-2",
+    },
+  },
 ];
 
 export function enabledCourses(): Course[] {

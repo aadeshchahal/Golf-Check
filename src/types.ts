@@ -2,7 +2,7 @@
 
 /** Which booking backend a course runs on. Each Edmonton-area course migrated
  *  to a different system; see src/courses.ts for the mapping. */
-export type Backend = "foreup" | "teeon" | "perfectmind" | "teeitup";
+export type Backend = "foreup" | "teeon" | "perfectmind" | "teeitup" | "chronogolf";
 
 /** Number of holes a golfer wants to play. */
 export type Holes = 9 | 18;
@@ -84,6 +84,7 @@ export interface Course {
   teeon?: TeeOnConfig;
   perfectmind?: PerfectMindConfig;
   teeitup?: TeeItUpConfig;
+  chronogolf?: ChronogolfConfig;
 }
 
 /** TeeItUp / GolfNow (Kenna backend) — River Ridge. Public JSON booking API,
@@ -93,6 +94,21 @@ export interface TeeItUpConfig {
   facilityId: number;
   /** Booking subdomain alias used as the x-be-alias header, e.g. "river-ridge". */
   alias: string;
+}
+
+/** Chronogolf / Lightspeed Golf — Broadmoor. Public JSON booking API, no auth
+ *  or browser; party size is enforced upstream (one affiliation id per golfer). */
+export interface ChronogolfConfig {
+  /** Host, e.g. "www.chronogolf.ca". */
+  host: string;
+  /** Numeric club/organization id, e.g. 18170. */
+  clubId: number;
+  /** Numeric course id, e.g. 21206. */
+  courseId: number;
+  /** Public player-type (affiliation) id used for green fees, e.g. 85414. */
+  affiliationTypeId: number;
+  /** Club slug for the booking deep link, e.g. "broadmoor-public-golf-course-2". */
+  slug: string;
 }
 
 /** ForeUp Software (foreupsoftware.com) — Eagle Rock. Public JSON booking API. */

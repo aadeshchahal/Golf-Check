@@ -4,6 +4,7 @@ import { foreUpAdapter } from "./adapters/foreup.js";
 import { teeOnAdapter } from "./adapters/teeon.js";
 import { perfectMindAdapter } from "./adapters/perfectmind.js";
 import { teeItUpAdapter } from "./adapters/teeitup.js";
+import { chronogolfAdapter } from "./adapters/chronogolf.js";
 import { minutesOfDay } from "./time.js";
 
 const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
@@ -11,6 +12,7 @@ const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
   teeon: teeOnAdapter,
   perfectmind: perfectMindAdapter,
   teeitup: teeItUpAdapter,
+  chronogolf: chronogolfAdapter,
 };
 
 // --- tiny in-memory cache (per course + date + holes) ---------------------
@@ -21,12 +23,14 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
-// Party size is part of the key only for Tee-On, which filters the tee sheet by
-// it upstream, so its results genuinely differ per player count. ForeUp and
-// PerfectMind fetch the whole sheet and we filter party size client-side, so
-// their fetches are identical across party sizes and share one cache entry.
+// Party size is part of the key only for backends that filter the tee sheet by
+// it upstream (Tee-On, Chronogolf), so their results genuinely differ per player
+// count. ForeUp/PerfectMind/TeeItUp fetch the whole sheet and we filter party
+// size client-side, so their fetches are identical across party sizes and share
+// one cache entry.
 function cacheKey(course: Course, date: string, holes: Holes, players: number): string {
-  const p = course.backend === "teeon" ? players : "all";
+  const filtersUpstream = course.backend === "teeon" || course.backend === "chronogolf";
+  const p = filtersUpstream ? players : "all";
   return `${course.id}:${date}:${holes}:${p}`;
 }
 
