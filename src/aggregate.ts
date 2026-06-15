@@ -5,6 +5,7 @@ import { teeOnAdapter } from "./adapters/teeon.js";
 import { perfectMindAdapter } from "./adapters/perfectmind.js";
 import { teeItUpAdapter } from "./adapters/teeitup.js";
 import { chronogolfAdapter } from "./adapters/chronogolf.js";
+import { clubProphetAdapter } from "./adapters/clubprophet.js";
 import { minutesOfDay } from "./time.js";
 
 const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
@@ -13,6 +14,7 @@ const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
   perfectmind: perfectMindAdapter,
   teeitup: teeItUpAdapter,
   chronogolf: chronogolfAdapter,
+  clubprophet: clubProphetAdapter,
 };
 
 // --- tiny in-memory cache (per course + date + holes) ---------------------

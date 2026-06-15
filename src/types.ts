@@ -2,7 +2,7 @@
 
 /** Which booking backend a course runs on. Each Edmonton-area course migrated
  *  to a different system; see src/courses.ts for the mapping. */
-export type Backend = "foreup" | "teeon" | "perfectmind" | "teeitup" | "chronogolf";
+export type Backend = "foreup" | "teeon" | "perfectmind" | "teeitup" | "chronogolf" | "clubprophet";
 
 /** Number of holes a golfer wants to play. */
 export type Holes = 9 | 18;
@@ -85,6 +85,7 @@ export interface Course {
   perfectmind?: PerfectMindConfig;
   teeitup?: TeeItUpConfig;
   chronogolf?: ChronogolfConfig;
+  clubprophet?: ClubProphetConfig;
 }
 
 /** TeeItUp / GolfNow (Kenna backend) — River Ridge. Public JSON booking API,
@@ -94,6 +95,15 @@ export interface TeeItUpConfig {
   facilityId: number;
   /** Booking subdomain alias used as the x-be-alias header, e.g. "river-ridge". */
   alias: string;
+}
+
+/** Club Prophet Systems (cps.golf) — Country Side. DISABLED: data APIs sit
+ *  behind a Cloudflare challenge (see src/adapters/clubprophet.ts). */
+export interface ClubProphetConfig {
+  /** Host, e.g. "countrysideab.cps.golf". */
+  host: string;
+  /** Online-reservation tenant slug, e.g. "countrysideab". */
+  tenant: string;
 }
 
 /** Chronogolf / Lightspeed Golf — Broadmoor. Public JSON booking API, no auth

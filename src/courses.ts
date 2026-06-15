@@ -11,10 +11,11 @@ import type { Course } from "./types.js";
 //   Tee-On (browser/HTML)  -> Mill Woods, Coloniale
 //   PerfectMind (browser)  -> Victoria, Riverside  (City of Edmonton)
 //
-// Country Side (Sherwood Park) is intentionally omitted: it runs on Club
-// Prophet Systems (countrysideab.cps.golf), whose availability API sits behind
-// a Cloudflare bot challenge that blocks automated/headless access. Revisit if
-// a reliable, polite path is found.
+// Country Side (Sherwood Park) is present but DISABLED (enabled:false): it runs
+// on Club Prophet Systems (countrysideab.cps.golf), whose data APIs sit behind a
+// Cloudflare challenge that blocks automated access even headful/residential
+// (verified 2026-06). See src/adapters/clubprophet.ts. Revisit only if a
+// reliable, polite path is found.
 
 export const COURSES: Course[] = [
   {
@@ -140,6 +141,20 @@ export const COURSES: Course[] = [
       courseId: 21206,
       affiliationTypeId: 85414, // "Public"
       slug: "broadmoor-public-golf-course-2",
+    },
+  },
+  // Club Prophet (CPS). DISABLED — data APIs are Cloudflare-blocked even
+  // headful/residential (see clubprophet.ts). Kept here so the intent + recon
+  // are recorded; never queried while enabled:false.
+  {
+    id: "countryside",
+    name: "Country Side (Sherwood Park)",
+    backend: "clubprophet",
+    timezone: "America/Edmonton",
+    enabled: false,
+    clubprophet: {
+      host: "countrysideab.cps.golf",
+      tenant: "countrysideab",
     },
   },
 ];
