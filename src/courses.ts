@@ -113,6 +113,19 @@ export const COURSES: Course[] = [
       courseGroupId: 10137,
     },
   },
+  // TeeItUp / GolfNow (Kenna). Facility id + subdomain alias captured 2026-06
+  // from river-ridge.book.teeitup.com (public JSON API, no browser needed).
+  {
+    id: "riverridge",
+    name: "River Ridge",
+    backend: "teeitup",
+    timezone: "America/Edmonton",
+    enabled: true,
+    teeitup: {
+      facilityId: 17149,
+      alias: "river-ridge",
+    },
+  },
 ];
 
 export function enabledCourses(): Course[] {

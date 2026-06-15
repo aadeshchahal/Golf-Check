@@ -2,7 +2,7 @@
 
 /** Which booking backend a course runs on. Each Edmonton-area course migrated
  *  to a different system; see src/courses.ts for the mapping. */
-export type Backend = "foreup" | "teeon" | "perfectmind";
+export type Backend = "foreup" | "teeon" | "perfectmind" | "teeitup";
 
 /** Number of holes a golfer wants to play. */
 export type Holes = 9 | 18;
@@ -83,6 +83,16 @@ export interface Course {
   foreup?: ForeUpConfig;
   teeon?: TeeOnConfig;
   perfectmind?: PerfectMindConfig;
+  teeitup?: TeeItUpConfig;
+}
+
+/** TeeItUp / GolfNow (Kenna backend) — River Ridge. Public JSON booking API,
+ *  no auth or browser; the subdomain alias rides along as an `x-be-alias` header. */
+export interface TeeItUpConfig {
+  /** GolfNow/Kenna facility id, e.g. 17149. */
+  facilityId: number;
+  /** Booking subdomain alias used as the x-be-alias header, e.g. "river-ridge". */
+  alias: string;
 }
 
 /** ForeUp Software (foreupsoftware.com) — Eagle Rock. Public JSON booking API. */

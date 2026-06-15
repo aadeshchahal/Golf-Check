@@ -3,12 +3,14 @@ import { enabledCourses } from "./courses.js";
 import { foreUpAdapter } from "./adapters/foreup.js";
 import { teeOnAdapter } from "./adapters/teeon.js";
 import { perfectMindAdapter } from "./adapters/perfectmind.js";
+import { teeItUpAdapter } from "./adapters/teeitup.js";
 import { minutesOfDay } from "./time.js";
 
 const ADAPTERS: Record<Course["backend"], CourseAdapter> = {
   foreup: foreUpAdapter,
   teeon: teeOnAdapter,
   perfectmind: perfectMindAdapter,
+  teeitup: teeItUpAdapter,
 };
 
 // --- tiny in-memory cache (per course + date + holes) ---------------------
